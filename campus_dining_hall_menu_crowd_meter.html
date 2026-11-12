@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CampusBite — Dining Hall Menu & Live Crowd Meter</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            campus: {
+              bg: '#F8FAFC',
+              card: '#FFFFFF',
+              ink: '#0F172A',
+              muted: '#64748B',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Custom subtle animations and scrollbar polish */
+    body {
+      background-color: #F8FAFC;
+      color: #0F172A;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .gauge-transition {
+      transition: width 0.65s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s ease;
+    }
+    .bar-transition {
+      transition: height 0.55s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease;
+    }
+    .donut-segment {
+      transition: stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1), stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.85); opacity: 0.8; }
+      70% { transform: scale(1.75); opacity: 0; }
+      100% { transform: scale(1.75); opacity: 0; }
+    }
+    .live-dot::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      background-color: currentColor;
+      animation: pulse-ring 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+    /* Hide scrollbar for horizontal filter pills on mobile */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-100 selection:text-emerald-900">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shadow-emerald-600/20">
+          <!-- Utensils SVG Icon -->
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+          </svg>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg tracking-tight text-slate-900">Campus<span class="text-emerald-600">Bite</span></span>
+          <span class="hidden sm:inline-block ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Live Dining Pulse</span>
+        </div>
+      </div>
+
+      <!-- Dining Hall Selector & Tray Drawer Button -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div class="relative">
+          <label for="hall-selector" class="sr-only">Select Dining Hall</label>
+          <select id="hall-selector" class="appearance-none bg-slate-100 hover:bg-slate-200/70 text-slate-800 font-semibold text-xs sm:text-sm rounded-xl pl-3.5 pr-9 py-2.5 border border-slate-200/80 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer">
+            <option value="north">North Commons</option>
+            <option value="south">South Bistro</option>
+          </select>
+          <svg class="w-4 h-4 text-slate-500 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" />
+          </svg>
+        </div>
+
+        <!-- My Meal Tray Trigger Button -->
+        <button id="open-tray-btn" type="button" class="relative inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl shadow-sm transition cursor-pointer">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2" />
+          </svg>
+          <span class="hidden sm:inline">My Meal Tray</span>
+          <span class="sm:hidden">Tray</span>
+          <span id="tray-count-badge" class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full bg-emerald-500 text-slate-950">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+
+    <!-- SECTION 1: LIVE CROWD-LEVEL METER & INTERACTIVE VOTING -->
+    <section aria-labelledby="crowd-heading" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      <!-- Left Card (7 cols): Live Occupancy Gauge & Interactive Wait-Time Voting -->
+      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 flex flex-col justify-between gap-5">
+        <div>
+          <!-- Top Status Row -->
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <span id="live-status-dot" class="relative inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 text-emerald-500 live-dot"></span>
+              <h1 id="crowd-heading" class="text-base sm:text-lg font-bold text-slate-900">
+                <span id="hall-title-name">North Commons</span> Crowd Pulse
+              </h1>
+            </div>
+            <span id="crowd-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Low / Quiet
+            </span>
+          </div>
+
+          <!-- Occupancy Metric & Est. Wait Time -->
+          <div class="flex items-baseline justify-between gap-4 mt-2">
+            <div>
+              <div class="flex items-baseline gap-2">
+                <span id="occupancy-pct" class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900">34%</span>
+                <span class="text-xs sm:text-sm font-medium text-slate-500">capacity full</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Est. Line Wait</p>
+              <p id="est-wait-time" class="text-lg sm:text-xl font-extrabold text-slate-900">~2 mins</p>
+            </div>
+          </div>
+
+          <!-- Custom Animated Progress Gauge -->
+          <div class="mt-4">
+            <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/70">
+              <div id="occupancy-bar" class="h-full rounded-full bg-emerald-500 gauge-transition" style="width: 34%;"></div>
+            </div>
+            <div class="flex justify-between text-[11px] font-medium text-slate-400 mt-1.5 px-0.5">
+              <span>0% Empty</span>
+              <span>50% Moderate</span>
+              <span>100% Full</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Student Crowd Voting Box -->
+        <div class="pt-4 border-t border-slate-100">
+          <div class="flex flex-wrap items-center justify-between gap-1 mb-2.5">
+            <p class="text-xs sm:text-sm font-semibold text-slate-800">At the dining hall right now? Report the line:</p>
+            <span id="last-updated-text" class="text-xs text-slate-500 font-medium">Updated 2 mins ago</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 sm:gap-3" role="group" aria-label="Vote on current dining hall wait time">
+            <!-- Vote Option 1: Low -->
+            <button type="button" data-vote="low" class="vote-btn group flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 active:scale-[0.98] transition cursor-pointer">
+              <span class="text-base sm:text-lg mb-0.5">🟢</span>
+              <span class="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-emerald-800">No Wait</span>
+              <span class="text-[11px] text-slate-500">&lt; 2 mins</span>
+              <span id="vote-count-low" class="mt-1.5 inline-block px-2 py-0.5 text-[11px] font-bold rounded-full bg-white border border-slate-200 text-slate-700">18 votes</span>
+            </button>
+
+            <!-- Vote Option 2: Moderate -->
+            <button type="button" data-vote="moderate" class="vote-btn group flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-amber-50 hover:border-amber-300 active:scale-[0.98] transition cursor-pointer">
+              <span class="text-base sm:text-lg mb-0.5">🟡</span>
+              <span class="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-amber-800">Moderate</span>
+              <span class="text-[11px] text-slate-500">5–10 mins</span>
+              <span id="vote-count-moderate" class="mt-1.5 inline-block px-2 py-0.5 text-[11px] font-bold rounded-full bg-white border border-slate-200 text-slate-700">7 votes</span>
+            </button>
+
+            <!-- Vote Option 3: Packed -->
+            <button type="button" data-vote="packed" class="vote-btn group flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-rose-50 hover:border-rose-300 active:scale-[0.98] transition cursor-pointer">
+              <span class="text-base sm:text-lg mb-0.5">🔴</span>
+              <span class="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-rose-800">Packed</span>
+              <span class="text-[11px] text-slate-500">15m+ wait</span>
+              <span id="vote-count-packed" class="mt-1.5 inline-block px-2 py-0.5 text-[11px] font-bold rounded-full bg-white border border-slate-200 text-slate-700">2 votes</span>
+            </button>
+          </div>
+          <!-- Live Toast / Inline Vote Confirmation -->
+          <div id="vote-feedback" class="hidden mt-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 flex items-center justify-between">
+            <span id="vote-feedback-msg">Thanks! Your live wait-time report updated the crowd meter.</span>
+            <span class="text-[11px] uppercase tracking-wider font-bold text-emerald-600">+1 Verified</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Card (5 cols): Hourly Historical Crowd Trend Bar Chart -->
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">Today's Crowd Forecast</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Typical hourly foot traffic & peak rushes</p>
+            </div>
+            <span id="peak-hour-pill" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+              Peak: 12 PM – 1 PM
+            </span>
+          </div>
+
+          <!-- Custom CSS Vertical Bar Chart -->
+          <div id="hourly-chart-container" class="mt-6 h-44 flex items-end justify-between gap-1.5 sm:gap-2 pt-6 pb-1 px-1 border-b border-slate-200" aria-label="Hourly crowd trend bar chart">
+            <!-- Populated dynamically via JS -->
+          </div>
+          <div id="hourly-labels-container" class="flex items-center justify-between gap-1.5 sm:gap-2 mt-2 px-1 text-[10px] sm:text-[11px] font-semibold text-slate-500">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Chart Legend & Smart Tip -->
+        <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400"></span>Quiet</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>Moderate</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-400"></span>Peak</span>
+          </div>
+          <span id="best-time-tip" class="font-semibold text-emerald-700">Best window: 2 PM – 4 PM</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: DAILY MENU CONTROLS (MEAL TABS, DIETARY FILTERS, SEARCH & SORT) -->
+    <section aria-labelledby="menu-heading" class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 id="menu-heading" class="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">Daily Menu & Nutrition</h2>
+          <p class="text-xs sm:text-sm text-slate-500">Tap any dish to inspect macro ratios, allergens, or add to your meal tray.</p>
+        </div>
+
+        <!-- Meal Period Segmented Tabs -->
+        <div class="inline-flex p-1 rounded-xl bg-slate-200/70 border border-slate-200 self-start sm:self-auto" role="tablist" aria-label="Meal periods">
+          <button type="button" role="tab" data-meal="Breakfast" aria-selected="false" class="meal-tab px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer text-slate-600 hover:text-slate-900">
+            Breakfast
+          </button>
+          <button type="button" role="tab" data-meal="Lunch" aria-selected="true" class="meal-tab px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-white text-slate-900 shadow-sm">
+            Lunch
+          </button>
+          <button type="button" role="tab" data-meal="Dinner" aria-selected="false" class="meal-tab px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer text-slate-600 hover:text-slate-900">
+            Dinner
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Bar: Search, Dietary Pills & Sort Dropdown -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 sm:p-4 space-y-3">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <!-- Search Input -->
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" />
+            </svg>
+            <input id="menu-search-input" type="search" placeholder="Search dishes, ingredients, or stations (e.g., Grill, Tofu, Bowl)..." class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition" />
+          </div>
+
+          <!-- Sort Selector -->
+          <div class="flex items-center gap-2 self-end md:self-auto">
+            <label for="sort-selector" class="text-xs font-semibold text-slate-500 whitespace-nowrap">Sort by:</label>
+            <div class="relative">
+              <select id="sort-selector" class="appearance-none bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs sm:text-sm font-semibold rounded-xl pl-3 pr-8 py-2.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer">
+                <option value="rating-desc">Highest Rated (Default)</option>
+                <option value="protein-desc">Highest Protein (g)</option>
+                <option value="calories-asc">Lowest Calories</option>
+                <option value="calories-desc">Highest Calories</option>
+              </select>
+              <svg class="w-4 h-4 text-slate-500 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Dietary Filter Toggle Pills -->
+        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+          <span class="text-xs font-semibold text-slate-400 mr-1 shrink-0">Dietary:</span>
+          <button type="button" data-filter="Vegan" class="diet-pill shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+            <span>🌱</span> Vegan
+          </button>
+          <button type="button" data-filter="Vegetarian" class="diet-pill shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+            <span>🥗</span> Vegetarian
+          </button>
+          <button type="button" data-filter="Gluten-Free" class="diet-pill shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+            <span>🌾</span> Gluten-Free
+          </button>
+          <button type="button" data-filter="Halal" class="diet-pill shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+            <span>☪️</span> Halal
+          </button>
+          <button type="button" data-filter="High Protein" class="diet-pill shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+            <span>💪</span> High Protein (25g+)
+          </button>
+          <button id="clear-filters-btn" type="button" class="hidden shrink-0 px-2.5 py-1.5 rounded-full text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Results Count & Station Quick Summary -->
+      <div class="flex items-center justify-between text-xs font-medium text-slate-500 px-1">
+        <span id="menu-results-count">Showing 6 dishes</span>
+        <span id="active-hall-meal-label">North Commons • Lunch</span>
+      </div>
+
+      <!-- Menu Cards Grid -->
+      <div id="menu-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+        <!-- Dish cards rendered dynamically via JS -->
+      </div>
+
+      <!-- Empty State (Shown when filters match 0 items) -->
+      <div id="empty-menu-state" class="hidden bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 mx-auto flex items-center justify-center text-2xl">🍽️</div>
+        <h3 class="text-base font-bold text-slate-900">No dishes match your current filters</h3>
+        <p class="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">Try clearing one or more dietary tags, switching meal periods, or searching for another ingredient.</p>
+        <button id="empty-reset-btn" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold transition cursor-pointer">
+          Clear All Filters
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Floating Bottom Tray Summary Bar (Mobile & Quick Access when items > 0) -->
+  <div id="floating-tray-bar" class="hidden fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-6 sm:w-96 z-30 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-900/25 border border-slate-700/80 p-3.5 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-extrabold text-sm" id="floating-tray-count">
+        1
+      </div>
+      <div>
+        <p class="text-xs font-bold text-white">My Meal Tray</p>
+        <p class="text-[11px] text-slate-300"><span id="floating-tray-cals" class="font-bold text-emerald-400">0</span> kcal • <span id="floating-tray-protein" class="font-bold text-white">0g</span> protein</p>
+      </div>
+    </div>
+    <button id="floating-open-tray-btn" type="button" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer">
+      View Tray
+    </button>
+  </div>
+
+  <!-- MODAL 1: NUTRITIONAL BREAKDOWN & MACRO VISUALIZATION -->
+  <div id="nutrition-modal" class="hidden fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="modal-dish-title">
+    <!-- Backdrop -->
+    <div id="nutrition-modal-backdrop" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"></div>
+
+    <div class="min-h-full flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden z-10">
+        <!-- Modal Top Header -->
+        <div class="p-5 sm:p-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5">
+              <span id="modal-station-badge" class="px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700">Global Bowl</span>
+              <span id="modal-rating-badge" class="inline-flex items-center gap-1 text-xs font-bold text-amber-600">★ 4.8</span>
+            </div>
+            <h3 id="modal-dish-title" class="text-xl font-extrabold text-slate-900 leading-snug">Dish Name</h3>
+            <p id="modal-dish-desc" class="text-xs sm:text-sm text-slate-500 mt-1">Dish description goes here.</p>
+          </div>
+          <button id="close-nutrition-modal" type="button" aria-label="Close modal" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body: SVG Macro Donut Chart & Breakdown -->
+        <div class="p-5 sm:p-6 space-y-5">
+          <!-- Dietary Badges Row -->
+          <div id="modal-dietary-tags" class="flex flex-wrap gap-1.5">
+            <!-- Populated via JS -->
+          </div>
+
+          <!-- Macro Distribution Card -->
+          <div class="bg-slate-50 rounded-2xl border border-slate-200/80 p-4 flex flex-col sm:flex-row items-center gap-5">
+            <!-- Crisp SVG Donut Chart -->
+            <div class="relative w-32 h-32 shrink-0 flex items-center justify-center">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <!-- Track -->
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#E2E8F0" stroke-width="4"></circle>
+                <!-- Protein Segment (Emerald) -->
+                <circle id="donut-protein" class="donut-segment" cx="18" cy="18" r="14" fill="none" stroke="#10B981" stroke-width="4" stroke-dasharray="0 100" stroke-dashoffset="0"></circle>
+                <!-- Carbs Segment (Amber) -->
+                <circle id="donut-carbs" class="donut-segment" cx="18" cy="18" r="14" fill="none" stroke="#F59E0B" stroke-width="4" stroke-dasharray="0 100" stroke-dashoffset="0"></circle>
+                <!-- Fat Segment (Rose/Coral) -->
+                <circle id="donut-fat" class="donut-segment" cx="18" cy="18" r="14" fill="none" stroke="#F43F5E" stroke-width="4" stroke-dasharray="0 100" stroke-dashoffset="0"></circle>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span id="modal-calories" class="text-xl font-extrabold text-slate-900 leading-none">540</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">kcal</span>
+              </div>
+            </div>
+
+            <!-- Macro Grams & Calorie Percentage Legend -->
+            <div class="flex-1 w-full space-y-2.5">
+              <!-- Protein -->
+              <div class="flex items-center justify-between text-xs sm:text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                  <span class="font-semibold text-slate-700">Protein</span>
+                </div>
+                <div class="font-bold text-slate-900">
+                  <span id="modal-protein-g">38g</span>
+                  <span id="modal-protein-pct" class="text-xs font-medium text-slate-400 ml-1">(28%)</span>
+                </div>
+              </div>
+              <!-- Carbs -->
+              <div class="flex items-center justify-between text-xs sm:text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                  <span class="font-semibold text-slate-700">Carbohydrates</span>
+                </div>
+                <div class="font-bold text-slate-900">
+                  <span id="modal-carbs-g">52g</span>
+                  <span id="modal-carbs-pct" class="text-xs font-medium text-slate-400 ml-1">(39%)</span>
+                </div>
+              </div>
+              <!-- Fat -->
+              <div class="flex items-center justify-between text-xs sm:text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                  <span class="font-semibold text-slate-700">Total Fat</span>
+                </div>
+                <div class="font-bold text-slate-900">
+                  <span id="modal-fat-g">19g</span>
+                  <span id="modal-fat-pct" class="text-xs font-medium text-slate-400 ml-1">(33%)</span>
+                </div>
+              </div>
+              <!-- Micronutrient / Fiber Sub-note -->
+              <div class="pt-2 border-t border-slate-200/70 flex justify-between text-[11px] text-slate-500">
+                <span>Serving Size: <strong id="modal-serving" class="text-slate-700">1 bowl (340g)</strong></span>
+                <span>Sodium: <strong id="modal-sodium" class="text-slate-700">610mg</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Allergen & Ingredient Notice -->
+          <div class="rounded-xl bg-amber-50/70 border border-amber-200/80 p-3.5">
+            <p class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+              <span>⚠️</span> Allergen & Prep Information
+            </p>
+            <p id="modal-allergens" class="text-xs text-amber-800 mt-1">Contains: Sesame, Soy. Prepared in a kitchen that handles tree nuts.</p>
+          </div>
+
+          <!-- Action Button: Save to My Meal Tray -->
+          <div class="flex items-center gap-3 pt-1">
+            <button id="modal-add-tray-btn" type="button" class="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-sm shadow-emerald-600/20 flex items-center justify-center gap-2 transition cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              <span>Save to My Meal Tray</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER / MODAL 2: MY MEAL TRAY CUMULATIVE CALCULATOR -->
+  <div id="tray-drawer" class="hidden fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="tray-drawer-title">
+    <div id="tray-drawer-backdrop" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"></div>
+
+    <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div class="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between z-10">
+        <!-- Drawer Header -->
+        <div class="p-5 sm:p-6 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h3 id="tray-drawer-title" class="text-lg font-extrabold text-slate-900">My Meal Tray</h3>
+            <p class="text-xs text-slate-500">Cumulative nutrition for your planned meal</p>
+          </div>
+          <button id="close-tray-drawer" type="button" aria-label="Close meal tray" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Drawer Scrollable Item List -->
+        <div id="tray-items-list" class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+        <!-- Drawer Footer: Cumulative Totals -->
+        <div class="p-5 sm:p-6 bg-slate-50 border-t border-slate-200 space-y-4">
+          <div class="grid grid-cols-4 gap-2 text-center">
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200/80">
+              <p class="text-[10px] font-bold uppercase text-slate-400">Calories</p>
+              <p id="tray-total-cals" class="text-base font-extrabold text-slate-900 mt-0.5">0</p>
+            </div>
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200/80">
+              <p class="text-[10px] font-bold uppercase text-emerald-600">Protein</p>
+              <p id="tray-total-protein" class="text-base font-extrabold text-slate-900 mt-0.5">0g</p>
+            </div>
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200/80">
+              <p class="text-[10px] font-bold uppercase text-amber-600">Carbs</p>
+              <p id="tray-total-carbs" class="text-base font-extrabold text-slate-900 mt-0.5">0g</p>
+            </div>
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200/80">
+              <p class="text-[10px] font-bold uppercase text-rose-600">Fat</p>
+              <p id="tray-total-fat" class="text-base font-extrabold text-slate-900 mt-0.5">0g</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2.5">
+            <button id="clear-tray-btn" type="button" class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition cursor-pointer">
+              Clear Tray
+            </button>
+            <button id="done-tray-btn" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition cursor-pointer">
+              Done Planning
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic & Embedded JSON Dataset -->
+  <script>
+    /*************************************************************************
+     * 1. REALISTIC JSON DATASET FOR CAMPUS DINING HALLS & MENUS
+     *************************************************************************/
+    const DINING_DATA = {
+      north: {
+        name: "North Commons",
+        crowd: {
+          occupancy: 34,
+          waitMinutes: 2,
+          votes: { low: 18, moderate: 7, packed: 2 },
+          lastUpdated: "2 mins ago",
+          peakWindow: "12 PM – 1 PM",
+          bestWindow: "2 PM – 4 PM",
+          hourly: [
+            { hour: "8a", pct: 28 },
+            { hour: "9a", pct: 45 },
+            { hour: "10a", pct: 22 },
+            { hour: "11a", pct: 58 },
+            { hour: "12p", pct: 88 },
+            { hour: "1p", pct: 74 },
+            { hour: "2p", pct: 34, current: true },
+            { hour: "3p", pct: 20 },
+            { hour: "4p", pct: 25 },
+            { hour: "5p", pct: 64 },
+            { hour: "6p", pct: 82 },
+            { hour: "7p", pct: 51 }
+          ]
+        },
+        menus: {
+          Breakfast: [
+            {
+              id: "nc-b1",
+              name: "Spinach & Feta Egg White Omelet",
+              station: "Grill",
+              description: "Fluffy cage-free egg whites folded with baby spinach, crumbled feta, and roasted cherry tomatoes.",
+              calories: 310,
+              protein: 29,
+              carbs: 9,
+              fat: 17,
+              serving: "1 omelet (240g)",
+              sodium: "520mg",
+              dietary: ["Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Eggs, Milk.",
+              rating: 4.8
+            },
+            {
+              id: "nc-b2",
+              name: "Blueberry Chia Overnight Oats",
+              station: "Greens",
+              description: "Rolled oats steeped in vanilla almond milk with organic chia seeds, wild blueberries, and toasted pumpkin seeds.",
+              calories: 380,
+              protein: 14,
+              carbs: 58,
+              fat: 11,
+              serving: "1 jar (290g)",
+              sodium: "180mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Tree Nuts (Almond).",
+              rating: 4.7
+            },
+            {
+              id: "nc-b3",
+              name: "Crispy Tofu & Sweet Potato Hash",
+              station: "Global Bowl",
+              description: "Turmeric-spiced organic tofu scrambled with caramelized sweet potatoes, bell peppers, and black beans.",
+              calories: 420,
+              protein: 26,
+              carbs: 49,
+              fat: 14,
+              serving: "1 bowl (320g)",
+              sodium: "490mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Soy.",
+              rating: 4.6
+            },
+            {
+              id: "nc-b4",
+              name: "Whole Grain Avocado Smash Toast",
+              station: "Bakery",
+              description: "Thick-cut seeded sourdough topped with Haas avocado, chili flakes, pickled red onions, and hemp hearts.",
+              calories: 360,
+              protein: 12,
+              carbs: 41,
+              fat: 18,
+              serving: "2 slices (210g)",
+              sodium: "430mg",
+              dietary: ["Vegan", "Vegetarian", "Halal"],
+              allergens: "Contains: Wheat, Sesame.",
+              rating: 4.5
+            }
+          ],
+          Lunch: [
+            {
+              id: "nc-l1",
+              name: "Harissa Grilled Chicken Shawarma Bowl",
+              station: "Global Bowl",
+              description: "Char-grilled halal chicken thighs marinated in rose harissa over saffron basmati rice, cucumber salad, and garlic tahini.",
+              calories: 610,
+              protein: 44,
+              carbs: 58,
+              fat: 21,
+              serving: "1 bowl (390g)",
+              sodium: "690mg",
+              dietary: ["Halal", "Gluten-Free"],
+              allergens: "Contains: Sesame.",
+              rating: 4.9
+            },
+            {
+              id: "nc-l2",
+              name: "Crispy Lemongrass Tofu & Quinoa Salad",
+              station: "Greens",
+              description: "Seared lemongrass tofu over tri-color quinoa, baby kale, edamame, shredded carrots, and ginger-miso vinaigrette.",
+              calories: 460,
+              protein: 27,
+              carbs: 48,
+              fat: 18,
+              serving: "1 plate (350g)",
+              sodium: "540mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Soy.",
+              rating: 4.8
+            },
+            {
+              id: "nc-l3",
+              name: "Grass-Fed Smash Burger & Sweet Fries",
+              station: "Grill",
+              description: "Double-seared halal beef patty with aged cheddar, caramelized onions, house pickles, and baked sweet potato fries.",
+              calories: 740,
+              protein: 41,
+              carbs: 64,
+              fat: 35,
+              serving: "1 combo (410g)",
+              sodium: "890mg",
+              dietary: ["Halal"],
+              allergens: "Contains: Wheat, Milk, Eggs.",
+              rating: 4.7
+            },
+            {
+              id: "nc-l4",
+              name: "Roasted Chickpea & Za'atar Flatbread",
+              station: "Bakery",
+              description: "Stone-baked flatbread layered with whipped hummus, crispy spiced chickpeas, heirloom tomatoes, and fresh mint.",
+              calories: 490,
+              protein: 18,
+              carbs: 66,
+              fat: 16,
+              serving: "1 flatbread (280g)",
+              sodium: "610mg",
+              dietary: ["Vegan", "Vegetarian", "Halal"],
+              allergens: "Contains: Wheat, Sesame.",
+              rating: 4.5
+            },
+            {
+              id: "nc-l5",
+              name: "Herb-Crusted Atlantic Salmon & Asparagus",
+              station: "Grill",
+              description: "Oven-roasted salmon fillet glazed with lemon-dill olive oil alongside charred asparagus and wild rice pilaf.",
+              calories: 550,
+              protein: 39,
+              carbs: 34,
+              fat: 28,
+              serving: "1 plate (330g)",
+              sodium: "470mg",
+              dietary: ["Gluten-Free", "Halal"],
+              allergens: "Contains: Fish (Salmon).",
+              rating: 4.8
+            },
+            {
+              id: "nc-l6",
+              name: "Mediterranean Lentil & Roasted Veggie Bowl",
+              station: "Greens",
+              description: "Warm French green lentils tossed with roasted zucchini, bell peppers, kalamata olives, and lemon-oregano dressing.",
+              calories: 410,
+              protein: 21,
+              carbs: 59,
+              fat: 11,
+              serving: "1 bowl (340g)",
+              sodium: "450mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "None of top 9 allergens.",
+              rating: 4.4
+            }
+          ],
+          Dinner: [
+            {
+              id: "nc-d1",
+              name: "Korean Gochujang Beef & Kimchi Rice Bowl",
+              station: "Global Bowl",
+              description: "Marinated halal bulgogi steak strips with house-fermented kimchi, steamed jasmine rice, sesame broccoli, and soft egg.",
+              calories: 640,
+              protein: 42,
+              carbs: 68,
+              fat: 22,
+              serving: "1 bowl (400g)",
+              sodium: "840mg",
+              dietary: ["Halal", "Gluten-Free"],
+              allergens: "Contains: Soy, Eggs, Sesame.",
+              rating: 4.9
+            },
+            {
+              id: "nc-d2",
+              name: "Coconut Red Curry Jackfruit & Jasmine Rice",
+              station: "Global Bowl",
+              description: "Tender young jackfruit and snap peas simmered in aromatic Thai red curry coconut broth over steamed jasmine rice.",
+              calories: 480,
+              protein: 13,
+              carbs: 72,
+              fat: 16,
+              serving: "1 bowl (380g)",
+              sodium: "580mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Tree Nuts (Coconut).",
+              rating: 4.7
+            },
+            {
+              id: "nc-d3",
+              name: "Rosemary Garlic Turkey Meatballs & Zucchini",
+              station: "Grill",
+              description: "Lean herb-seasoned turkey meatballs baked in San Marzano marinara over roasted garlic zucchini ribbons.",
+              calories: 440,
+              protein: 37,
+              carbs: 22,
+              fat: 23,
+              serving: "1 plate (320g)",
+              sodium: "630mg",
+              dietary: ["Gluten-Free", "Halal"],
+              allergens: "Contains: Eggs.",
+              rating: 4.6
+            },
+            {
+              id: "nc-d4",
+              name: "Warm Cinnamon Apple Crumble Tart",
+              station: "Bakery",
+              description: "Baked Honeycrisp apples topped with a golden oat-almond streusel.",
+              calories: 320,
+              protein: 5,
+              carbs: 51,
+              fat: 11,
+              serving: "1 slice (160g)",
+              sodium: "190mg",
+              dietary: ["Vegan", "Vegetarian", "Halal"],
+              allergens: "Contains: Tree Nuts (Almond), Wheat.",
+              rating: 4.8
+            }
+          ]
+        }
+      },
+
+      south: {
+        name: "South Bistro",
+        crowd: {
+          occupancy: 72,
+          waitMinutes: 9,
+          votes: { low: 4, moderate: 23, packed: 9 },
+          lastUpdated: "1 min ago",
+          peakWindow: "12:30 PM – 1:30 PM",
+          bestWindow: "3 PM – 5 PM",
+          hourly: [
+            { hour: "8a", pct: 20 },
+            { hour: "9a", pct: 38 },
+            { hour: "10a", pct: 30 },
+            { hour: "11a", pct: 62 },
+            { hour: "12p", pct: 92 },
+            { hour: "1p", pct: 86 },
+            { hour: "2p", pct: 72, current: true },
+            { hour: "3p", pct: 35 },
+            { hour: "4p", pct: 28 },
+            { hour: "5p", pct: 70 },
+            { hour: "6p", pct: 89 },
+            { hour: "7p", pct: 60 }
+          ]
+        },
+        menus: {
+          Breakfast: [
+            {
+              id: "sb-b1",
+              name: "Protein Berry & Greek Yogurt Parfait",
+              station: "Greens",
+              description: "Strained 0% Greek yogurt layered with house-baked maple pecan granola, strawberries, and chia seeds.",
+              calories: 350,
+              protein: 26,
+              carbs: 42,
+              fat: 9,
+              serving: "1 cup (260g)",
+              sodium: "140mg",
+              dietary: ["Vegetarian", "Halal"],
+              allergens: "Contains: Milk, Tree Nuts (Pecan).",
+              rating: 4.8
+            },
+            {
+              id: "sb-b2",
+              name: "Black Bean & Salsa Verde Breakfast Burrito",
+              station: "Global Bowl",
+              description: "Warm flour tortilla filled with cage-free scrambled eggs, seasoned black beans, roasted poblano, and tomatillo salsa.",
+              calories: 510,
+              protein: 25,
+              carbs: 59,
+              fat: 19,
+              serving: "1 burrito (310g)",
+              sodium: "710mg",
+              dietary: ["Vegetarian", "Halal"],
+              allergens: "Contains: Wheat, Eggs, Milk.",
+              rating: 4.7
+            },
+            {
+              id: "sb-b3",
+              name: "Matcha Buckwheat Waffles",
+              station: "Bakery",
+              description: "Crisp ceremonial-grade matcha and buckwheat waffles served with coconut whipped cream and sliced kiwi.",
+              calories: 390,
+              protein: 11,
+              carbs: 56,
+              fat: 14,
+              serving: "2 waffles (230g)",
+              sodium: "340mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Tree Nuts (Coconut).",
+              rating: 4.6
+            }
+          ],
+          Lunch: [
+            {
+              id: "sb-l1",
+              name: "Chipotle Lime Black Bean & Tempeh Burrito Bowl",
+              station: "Global Bowl",
+              description: "Smoky seared tempeh and cumin black beans over cilantro-lime brown rice, roasted corn pico, and avocado crema.",
+              calories: 530,
+              protein: 31,
+              carbs: 64,
+              fat: 17,
+              serving: "1 bowl (380g)",
+              sodium: "620mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Soy.",
+              rating: 4.9
+            },
+            {
+              id: "sb-l2",
+              name: "Pesto Grilled Turkey & Mozzarella Panini",
+              station: "Grill",
+              description: "Sliced roasted halal turkey breast, fresh mozzarella, sun-dried tomatoes, and basil pesto pressed on ciabatta.",
+              calories: 590,
+              protein: 38,
+              carbs: 49,
+              fat: 26,
+              serving: "1 panini (300g)",
+              sodium: "790mg",
+              dietary: ["Halal"],
+              allergens: "Contains: Wheat, Milk, Tree Nuts (Pine Nuts).",
+              rating: 4.7
+            },
+            {
+              id: "sb-l3",
+              name: "Superfood Kale, Cranberry & Walnuts Salad",
+              station: "Greens",
+              description: "Massaged Tuscan kale, roasted butternut squash, dried cranberries, candied walnuts, and apple cider vinaigrette.",
+              calories: 370,
+              protein: 10,
+              carbs: 44,
+              fat: 19,
+              serving: "1 bowl (290g)",
+              sodium: "310mg",
+              dietary: ["Vegan", "Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Tree Nuts (Walnuts).",
+              rating: 4.5
+            },
+            {
+              id: "sb-l4",
+              name: "Miso Glazed Eggplant & Edamame Soba",
+              station: "Global Bowl",
+              description: "Chilled buckwheat soba noodles tossed with sweet white-miso roasted eggplant, shelled edamame, and scallions.",
+              calories: 450,
+              protein: 22,
+              carbs: 63,
+              fat: 12,
+              serving: "1 bowl (340g)",
+              sodium: "680mg",
+              dietary: ["Vegan", "Vegetarian", "Halal"],
+              allergens: "Contains: Soy, Wheat, Sesame.",
+              rating: 4.6
+            }
+          ],
+          Dinner: [
+            {
+              id: "sb-d1",
+              name: "Tandoori Paneer & Cauliflower Tikka Masala",
+              station: "Global Bowl",
+              description: "Charred paneer cubes and cauliflower florets in a velvety spiced tomato-cashew masala with steamed basmati rice.",
+              calories: 580,
+              protein: 26,
+              carbs: 56,
+              fat: 28,
+              serving: "1 plate (380g)",
+              sodium: "670mg",
+              dietary: ["Vegetarian", "Gluten-Free", "Halal"],
+              allergens: "Contains: Milk, Tree Nuts (Cashew).",
+              rating: 4.9
+            },
+            {
+              id: "sb-d2",
+              name: "Chimichurri Steak & Roasted Fingerling Potatoes",
+              station: "Grill",
+              description: "Sliced grilled halal flank steak topped with bright parsley-garlic chimichurri, crispy fingerlings, and green beans.",
+              calories: 620,
+              protein: 45,
+              carbs: 42,
+              fat: 29,
+              serving: "1 plate (370g)",
+              sodium: "610mg",
+              dietary: ["Gluten-Free", "Halal"],
+              allergens: "None of top 9 allergens.",
+              rating: 4.8
+            },
+            {
+              id: "sb-d3",
+              name: "Tuscan White Bean & Rosemary Focaccia",
+              station: "Bakery",
+              description: "Dimpled olive oil rosemary focaccia served alongside a warm garlic-cannellini bean and escarole ragout.",
+              calories: 470,
+              protein: 19,
+              carbs: 65,
+              fat: 15,
+              serving: "1 bowl + slice (340g)",
+              sodium: "590mg",
+              dietary: ["Vegan", "Vegetarian", "Halal"],
+              allergens: "Contains: Wheat.",
+              rating: 4.6
+            }
+          ]
+        }
+      }
+    };
+
+    /*************************************************************************
+     * 2. APPLICATION STATE
+     *************************************************************************/
+    const state = {
+      currentHall: "north",
+      currentMeal: "Lunch",
+      activeFilters: new Set(),
+      searchQuery: "",
+      sortBy: "rating-desc",
+      selectedDish: null,
+      mealTray: [], // Array of dish objects
+      userVotedHall: {} // Tracks if user voted per hall for visual highlight
+    };
+
+    /*************************************************************************
+     * 3. DOM ELEMENT REFERENCES
+     *************************************************************************/
+    const els = {
+      hallSelector: document.getElementById("hall-selector"),
+      hallTitleName: document.getElementById("hall-title-name"),
+      liveStatusDot: document.getElementById("live-status-dot"),
+      crowdBadge: document.getElementById("crowd-badge"),
+      occupancyPct: document.getElementById("occupancy-pct"),
+      estWaitTime: document.getElementById("est-wait-time"),
+      occupancyBar: document.getElementById("occupancy-bar"),
+      lastUpdatedText: document.getElementById("last-updated-text"),
+      voteCountLow: document.getElementById("vote-count-low"),
+      voteCountModerate: document.getElementById("vote-count-moderate"),
+      voteCountPacked: document.getElementById("vote-count-packed"),
+      voteBtns: document.querySelectorAll(".vote-btn"),
+      voteFeedback: document.getElementById("vote-feedback"),
+      voteFeedbackMsg: document.getElementById("vote-feedback-msg"),
+      peakHourPill: document.getElementById("peak-hour-pill"),
+      bestTimeTip: document.getElementById("best-time-tip"),
+      hourlyChartContainer: document.getElementById("hourly-chart-container"),
+      hourlyLabelsContainer: document.getElementById("hourly-labels-container"),
+      mealTabs: document.querySelectorAll(".meal-tab"),
+      searchInput: document.getElementById("menu-search-input"),
+      sortSelector: document.getElementById("sort-selector"),
+      dietPills: document.querySelectorAll(".diet-pill"),
+      clearFiltersBtn: document.getElementById("clear-filters-btn"),
+      emptyResetBtn: document.getElementById("empty-reset-btn"),
+      menuResultsCount: document.getElementById("menu-results-count"),
+      activeHallMealLabel: document.getElementById("active-hall-meal-label"),
+      menuGrid: document.getElementById("menu-grid"),
+      emptyMenuState: document.getElementById("empty-menu-state"),
+      // Nutrition Modal
+      nutritionModal: document.getElementById("nutrition-modal"),
+      nutritionModalBackdrop: document.getElementById("nutrition-modal-backdrop"),
+      closeNutritionModal: document.getElementById("close-nutrition-modal"),
+      modalStationBadge: document.getElementById("modal-station-badge"),
+      modalRatingBadge: document.getElementById("modal-rating-badge"),
+      modalDishTitle: document.getElementById("modal-dish-title"),
+      modalDishDesc: document.getElementById("modal-dish-desc"),
+      modalDietaryTags: document.getElementById("modal-dietary-tags"),
+      modalCalories: document.getElementById("modal-calories"),
+      modalProteinG: document.getElementById("modal-protein-g"),
+      modalProteinPct: document.getElementById("modal-protein-pct"),
+      modalCarbsG: document.getElementById("modal-carbs-g"),
+      modalCarbsPct: document.getElementById("modal-carbs-pct"),
+      modalFatG: document.getElementById("modal-fat-g"),
+      modalFatPct: document.getElementById("modal-fat-pct"),
+      donutProtein: document.getElementById("donut-protein"),
+      donutCarbs: document.getElementById("donut-carbs"),
+      donutFat: document.getElementById("donut-fat"),
+      modalServing: document.getElementById("modal-serving"),
+      modalSodium: document.getElementById("modal-sodium"),
+      modalAllergens: document.getElementById("modal-allergens"),
+      modalAddTrayBtn: document.getElementById("modal-add-tray-btn"),
+      // Meal Tray Drawer & Floating Bar
+      openTrayBtn: document.getElementById("open-tray-btn"),
+      trayCountBadge: document.getElementById("tray-count-badge"),
+      floatingTrayBar: document.getElementById("floating-tray-bar"),
+      floatingTrayCount: document.getElementById("floating-tray-count"),
+      floatingTrayCals: document.getElementById("floating-tray-cals"),
+      floatingTrayProtein: document.getElementById("floating-tray-protein"),
+      floatingOpenTrayBtn: document.getElementById("floating-open-tray-btn"),
+      trayDrawer: document.getElementById("tray-drawer"),
+      trayDrawerBackdrop: document.getElementById("tray-drawer-backdrop"),
+      closeTrayDrawer: document.getElementById("close-tray-drawer"),
+      trayItemsList: document.getElementById("tray-items-list"),
+      trayTotalCals: document.getElementById("tray-total-cals"),
+      trayTotalProtein: document.getElementById("tray-total-protein"),
+      trayTotalCarbs: document.getElementById("tray-total-carbs"),
+      trayTotalFat: document.getElementById("tray-total-fat"),
+      clearTrayBtn: document.getElementById("clear-tray-btn"),
+      doneTrayBtn: document.getElementById("done-tray-btn")
+    };
+
+    /*************************************************************************
+     * 4. CROWD METER & HOURLY CHART RENDERING
+     *************************************************************************/
+    function getCrowdStatusMeta(occupancy) {
+      if (occupancy < 45) {
+        return {
+          label: "Low / Quiet",
+          badgeClasses: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          barColor: "bg-emerald-500",
+          dotColor: "bg-emerald-500 text-emerald-500"
+        };
+      } else if (occupancy < 75) {
+        return {
+          label: "Moderate Flow",
+          badgeClasses: "bg-amber-50 text-amber-800 border-amber-200",
+          barColor: "bg-amber-500",
+          dotColor: "bg-amber-500 text-amber-500"
+        };
+      } else {
+        return {
+          label: "Busy / Packed",
+          badgeClasses: "bg-rose-50 text-rose-700 border-rose-200",
+          barColor: "bg-rose-500",
+          dotColor: "bg-rose-500 text-rose-500"
+        };
+      }
+    }
+
+    function renderCrowdSection() {
+      const hall = DINING_DATA[state.currentHall];
+      const crowd = hall.crowd;
+      const meta = getCrowdStatusMeta(crowd.occupancy);
+
+      els.hallTitleName.textContent = hall.name;
+      els.occupancyPct.textContent = `${crowd.occupancy}%`;
+      els.estWaitTime.textContent = crowd.waitMinutes <= 2 ? "< 2 mins" : `~${crowd.waitMinutes} mins`;
+      els.lastUpdatedText.textContent = `Updated ${crowd.lastUpdated}`;
+
+      // Badge & Live Dot styling
+      els.crowdBadge.textContent = meta.label;
+      els.crowdBadge.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${meta.badgeClasses}`;
+      els.liveStatusDot.className = `relative inline-block w-2.5 h-2.5 rounded-full live-dot ${meta.dotColor}`;
+
+      // Animated Occupancy Bar
+      els.occupancyBar.style.width = `${Math.min(100, Math.max(5, crowd.occupancy))}%`;
+      els.occupancyBar.className = `h-full rounded-full gauge-transition ${meta.barColor}`;
+
+      // Vote Tallies
+      els.voteCountLow.textContent = `${crowd.votes.low} votes`;
+      els.voteCountModerate.textContent = `${crowd.votes.moderate} votes`;
+      els.voteCountPacked.textContent = `${crowd.votes.packed} votes`;
+
+      // Highlight user's selected vote button for this hall if any
+      const userVote = state.userVotedHall[state.currentHall];
+      els.voteBtns.forEach(btn => {
+        const type = btn.dataset.vote;
+        btn.classList.remove("ring-2", "ring-emerald-500", "ring-amber-500", "ring-rose-500", "bg-emerald-50/70", "bg-amber-50/70", "bg-rose-50/70");
+        if (userVote === type) {
+          if (type === "low") btn.classList.add("ring-2", "ring-emerald-500", "bg-emerald-50/70");
+          if (type === "moderate") btn.classList.add("ring-2", "ring-amber-500", "bg-amber-50/70");
+          if (type === "packed") btn.classList.add("ring-2", "ring-rose-500", "bg-rose-50/70");
+        }
+      });
+
+      // Hourly Chart
+      els.peakHourPill.textContent = `Peak: ${crowd.peakWindow}`;
+      els.bestTimeTip.textContent = `Best window: ${crowd.bestWindow}`;
+      renderHourlyChart(crowd.hourly);
+    }
+
+    function renderHourlyChart(hourlyData) {
+      els.hourlyChartContainer.innerHTML = "";
+      els.hourlyLabelsContainer.innerHTML = "";
+
+      hourlyData.forEach(slot => {
+        let barColor = "bg-emerald-400 hover:bg-emerald-500";
+        if (slot.pct >= 75) barColor = "bg-rose-400 hover:bg-rose-500";
+        else if (slot.pct >= 45) barColor = "bg-amber-400 hover:bg-amber-500";
+
+        const isCurrent = Boolean(slot.current);
+        const currentRing = isCurrent ? "ring-2 ring-slate-900 ring-offset-1" : "";
+
+        // Bar wrapper
+        const barCol = document.createElement("div");
+        barCol.className = "flex-1 h-full flex flex-col justify-end items-center group relative";
+
+        // Tooltip on hover
+        const tooltip = document.createElement("span");
+        tooltip.className = "opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 bg-slate-900 text-white text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10";
+        tooltip.textContent = `${slot.pct}%`;
+
+        // Bar element
+        const bar = document.createElement("div");
+        bar.className = `w-full max-w-[22px] rounded-t-md bar-transition ${barColor} ${currentRing}`;
+        bar.style.height = `${slot.pct}%`;
+        bar.setAttribute("title", `${slot.hour}: ${slot.pct}% capacity`);
+
+        barCol.appendChild(tooltip);
+        barCol.appendChild(bar);
+        els.hourlyChartContainer.appendChild(barCol);
+
+        // X-axis label
+        const label = document.createElement("span");
+        label.className = `flex-1 text-center ${isCurrent ? "text-slate-900 font-extrabold underline decoration-emerald-500 decoration-2 underline-offset-4" : ""}`;
+        label.textContent = slot.hour;
+        els.hourlyLabelsContainer.appendChild(label);
+      });
+    }
+
+    function handleCrowdVote(voteType) {
+      const hall = DINING_DATA[state.currentHall];
+      const crowd = hall.crowd;
+
+      // Increment vote tally
+      crowd.votes[voteType] += 1;
+      state.userVotedHall[state.currentHall] = voteType;
+
+      // Recalculate weighted occupancy & estimated wait minutes smoothly
+      const totalVotes = crowd.votes.low + crowd.votes.moderate + crowd.votes.packed;
+      const weightedScore = (crowd.votes.low * 22 + crowd.votes.moderate * 62 + crowd.votes.packed * 92) / totalVotes;
+      crowd.occupancy = Math.round(weightedScore);
+
+      if (crowd.occupancy < 45) {
+        crowd.waitMinutes = 2;
+      } else if (crowd.occupancy < 75) {
+        crowd.waitMinutes = Math.round(5 + ((crowd.occupancy - 45) / 30) * 6);
+      } else {
+        crowd.waitMinutes = Math.round(13 + ((crowd.occupancy - 75) / 25) * 7);
+      }
+
+      // Update current hour bar in forecast to match live pulse
+      const currentHourSlot = crowd.hourly.find(h => h.current);
+      if (currentHourSlot) {
+        currentHourSlot.pct = crowd.occupancy;
+      }
+
+      crowd.lastUpdated = "Just now";
+      renderCrowdSection();
+
+      // Show inline confirmation feedback
+      const labelMap = {
+        low: "No Wait (< 2m)",
+        moderate: "Moderate (5–10m)",
+        packed: "Packed (15m+)"
+      };
+      els.voteFeedbackMsg.textContent = `Thanks! Reported "${labelMap[voteType]}" at ${hall.name}.`;
+      els.voteFeedback.classList.remove("hidden");
+    }
+
+    /*************************************************************************
+     * 5. MENU FILTERING, SORTING & RENDERING
+     *************************************************************************/
+    function getDietaryBadgeStyle(tag) {
+      switch (tag) {
+        case "Vegan":
+          return "bg-emerald-50 text-emerald-700 border-emerald-200";
+        case "Vegetarian":
+          return "bg-teal-50 text-teal-700 border-teal-200";
+        case "Gluten-Free":
+          return "bg-amber-50 text-amber-800 border-amber-200";
+        case "Halal":
+          return "bg-sky-50 text-sky-700 border-sky-200";
+        default:
+          return "bg-slate-100 text-slate-700 border-slate-200";
+      }
+    }
+
+    function getFilteredAndSortedDishes() {
+      const hall = DINING_DATA[state.currentHall];
+      const rawDishes = hall.menus[state.currentMeal] || [];
+
+      const filtered = rawDishes.filter(dish => {
+        // 1. Search filter
+        if (state.searchQuery.trim() !== "") {
+          const q = state.searchQuery.toLowerCase();
+          const haystack = `${dish.name} ${dish.station} ${dish.description} ${dish.dietary.join(" ")}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+
+        // 2. Dietary & High-Protein toggle filters (AND logic)
+        for (const filter of state.activeFilters) {
+          if (filter === "High Protein") {
+            if (dish.protein < 25) return false;
+          } else {
+            if (!dish.dietary.includes(filter)) return false;
+          }
+        }
+
+        return true;
+      });
+
+      // 3. Clean Sorting (descending/ascending as chosen)
+      const sorted = [...filtered].sort((a, b) => {
+        if (state.sortBy === "rating-desc") return b.rating - a.rating;
+        if (state.sortBy === "protein-desc") return b.protein - a.protein;
+        if (state.sortBy === "calories-asc") return a.calories - b.calories;
+        if (state.sortBy === "calories-desc") return b.calories - a.calories;
+        return 0;
+      });
+
+      return sorted;
+    }
+
+    function renderMenuGrid() {
+      const hall = DINING_DATA[state.currentHall];
+      const dishes = getFilteredAndSortedDishes();
+
+      els.activeHallMealLabel.textContent = `${hall.name} • ${state.currentMeal}`;
+      els.menuResultsCount.textContent = `Showing ${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"}`;
+
+      // Toggle Reset button visibility
+      if (state.activeFilters.size > 0 || state.searchQuery.trim() !== "") {
+        els.clearFiltersBtn.classList.remove("hidden");
+      } else {
+        els.clearFiltersBtn.classList.add("hidden");
+      }
+
+      if (dishes.length === 0) {
+        els.menuGrid.innerHTML = "";
+        els.emptyMenuState.classList.remove("hidden");
+        return;
+      }
+
+      els.emptyMenuState.classList.add("hidden");
+      els.menuGrid.innerHTML = dishes.map(dish => {
+        const dietaryBadgesHtml = dish.dietary.map(tag => `
+          <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getDietaryBadgeStyle(tag)}">${tag}</span>
+        `).join("");
+
+        const highProteinBadge = dish.protein >= 25
+          ? `<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">💪 ${dish.protein}g Protein</span>`
+          : "";
+
+        return `
+          <article data-dish-id="${dish.id}" class="dish-card group bg-white rounded-2xl border border-slate-200/90 hover:border-emerald-400 shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between gap-4 cursor-pointer">
+            <div>
+              <!-- Station & Rating Header -->
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                  ${dish.station}
+                </span>
+                <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  ★ ${dish.rating.toFixed(1)}
+                </span>
+              </div>
+
+              <!-- Dish Title & Description -->
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug">
+                ${dish.name}
+              </h3>
+              <p class="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
+                ${dish.description}
+              </p>
+
+              <!-- Dietary Tags -->
+              <div class="flex flex-wrap gap-1.5 mt-3">
+                ${dietaryBadgesHtml}
+                ${highProteinBadge}
+              </div>
+            </div>
+
+            <!-- Macro Summary Footer -->
+            <div class="pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-3 text-xs">
+                <div>
+                  <span class="font-extrabold text-slate-900">${dish.calories}</span>
+                  <span class="text-slate-400 font-medium">kcal</span>
+                </div>
+                <span class="text-slate-200">|</span>
+                <div>
+                  <span class="font-bold text-emerald-700">${dish.protein}g</span>
+                  <span class="text-slate-400">P</span>
+                </div>
+                <div>
+                  <span class="font-bold text-amber-600">${dish.carbs}g</span>
+                  <span class="text-slate-400">C</span>
+                </div>
+                <div>
+                  <span class="font-bold text-rose-600">${dish.fat}g</span>
+                  <span class="text-slate-400">F</span>
+                </div>
+              </div>
+
+              <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 group-hover:translate-x-0.5 transition-transform">
+                Nutrition
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+                </svg>
+              </span>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      // Attach click handlers to dish cards
+      document.querySelectorAll(".dish-card").forEach(card => {
+        card.addEventListener("click", () => {
+          const id = card.dataset.dishId;
+          const found = dishes.find(d => d.id === id);
+          if (found) openNutritionModal(found);
+        });
+      });
+    }
+
+    /*************************************************************************
+     * 6. NUTRITIONAL BREAKDOWN MODAL & SVG MACRO DONUT
+     *************************************************************************/
+    function openNutritionModal(dish) {
+      state.selectedDish = dish;
+
+      els.modalStationBadge.textContent = dish.station;
+      els.modalRatingBadge.textContent = `★ ${dish.rating.toFixed(1)}`;
+      els.modalDishTitle.textContent = dish.name;
+      els.modalDishDesc.textContent = dish.description;
+      els.modalCalories.textContent = dish.calories;
+      els.modalServing.textContent = dish.serving;
+      els.modalSodium.textContent = dish.sodium;
+      els.modalAllergens.textContent = dish.allergens;
+
+      // Dietary badges
+      els.modalDietaryTags.innerHTML = dish.dietary.map(tag => `
+        <span class="px-2.5 py-1 rounded-lg text-xs font-semibold border ${getDietaryBadgeStyle(tag)}">${tag}</span>
+      `).join("");
+
+      // Calculate Macro Caloric Contributions (4 kcal/g Protein & Carbs, 9 kcal/g Fat)
+      const pCals = dish.protein * 4;
+      const cCals = dish.carbs * 4;
+      const fCals = dish.fat * 9;
+      const totalMacroCals = Math.max(1, pCals + cCals + fCals);
+
+      const pPct = Math.round((pCals / totalMacroCals) * 100);
+      const cPct = Math.round((cCals / totalMacroCals) * 100);
+      const fPct = Math.max(0, 100 - pPct - cPct);
+
+      els.modalProteinG.textContent = `${dish.protein}g`;
+      els.modalProteinPct.textContent = `(${pPct}%)`;
+      els.modalCarbsG.textContent = `${dish.carbs}g`;
+      els.modalCarbsPct.textContent = `(${cPct}%)`;
+      els.modalFatG.textContent = `${dish.fat}g`;
+      els.modalFatPct.textContent = `(${fPct}%)`;
+
+      // Update SVG Donut Stroke Dasharrays (Circumference for r=14 is ~87.96)
+      const circumference = 2 * Math.PI * 14;
+      const pDash = (pPct / 100) * circumference;
+      const cDash = (cPct / 100) * circumference;
+      const fDash = (fPct / 100) * circumference;
+
+      els.donutProtein.setAttribute("stroke-dasharray", `${pDash} ${circumference}`);
+      els.donutProtein.setAttribute("stroke-dashoffset", "0");
+
+      els.donutCarbs.setAttribute("stroke-dasharray", `${cDash} ${circumference}`);
+      els.donutCarbs.setAttribute("stroke-dashoffset", `${-pDash}`);
+
+      els.donutFat.setAttribute("stroke-dasharray", `${fDash} ${circumference}`);
+      els.donutFat.setAttribute("stroke-dashoffset", `${-(pDash + cDash)}`);
+
+      // Show Modal
+      els.nutritionModal.classList.remove("hidden");
+      document.body.classList.add("overflow-hidden");
+    }
+
+    function closeNutritionModal() {
+      els.nutritionModal.classList.add("hidden");
+      document.body.classList.remove("overflow-hidden");
+    }
+
+    /*************************************************************************
+     * 7. MY MEAL TRAY (CUMULATIVE CALCULATOR)
+     *************************************************************************/
+    function addDishToTray(dish) {
+      state.mealTray.push({
+        ...dish,
+        trayEntryId: `${dish.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        hallName: DINING_DATA[state.currentHall].name
+      });
+      updateTrayUI();
+    }
+
+    function removeDishFromTray(trayEntryId) {
+      state.mealTray = state.mealTray.filter(item => item.trayEntryId !== trayEntryId);
+      updateTrayUI();
+    }
+
+    function updateTrayUI() {
+      const count = state.mealTray.length;
+      const totals = state.mealTray.reduce(
+        (acc, item) => {
+          acc.calories += item.calories;
+          acc.protein += item.protein;
+          acc.carbs += item.carbs;
+          acc.fat += item.fat;
+          return acc;
+        },
+        { calories: 0, protein: 0, carbs: 0, fat: 0 }
+      );
+
+      // Header Badge
+      els.trayCountBadge.textContent = count;
+
+      // Floating Bar visibility & stats
+      if (count > 0) {
+        els.floatingTrayBar.classList.remove("hidden");
+        els.floatingTrayCount.textContent = count;
+        els.floatingTrayCals.textContent = totals.calories;
+        els.floatingTrayProtein.textContent = `${totals.protein}g`;
+      } else {
+        els.floatingTrayBar.classList.add("hidden");
+      }
+
+      // Drawer Totals
+      els.trayTotalCals.textContent = totals.calories;
+      els.trayTotalProtein.textContent = `${totals.protein}g`;
+      els.trayTotalCarbs.textContent = `${totals.carbs}g`;
+      els.trayTotalFat.textContent = `${totals.fat}g`;
+
+      // Drawer Item List
+      if (count === 0) {
+        els.trayItemsList.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-center py-12 px-4">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-2xl mb-3">🥗</div>
+            <p class="text-sm font-bold text-slate-800">Your meal tray is empty</p>
+            <p class="text-xs text-slate-500 mt-1">Click any dish on the menu and tap "Save to My Meal Tray" to track your total calories & macros.</p>
+          </div>
+        `;
+      } else {
+        els.trayItemsList.innerHTML = state.mealTray.map(item => `
+          <div class="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700">${item.hallName} • ${item.station}</span>
+              <h4 class="text-sm font-bold text-slate-900 leading-snug mt-0.5">${item.name}</h4>
+              <p class="text-xs text-slate-500 mt-1">
+                <strong class="text-slate-800">${item.calories} kcal</strong> • ${item.protein}g P • ${item.carbs}g C • ${item.fat}g F
+              </p>
+            </div>
+            <button type="button" data-remove-tray="${item.trayEntryId}" aria-label="Remove ${item.name}" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        `).join("");
+
+        // Bind remove buttons
+        document.querySelectorAll("[data-remove-tray]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            removeDishFromTray(btn.dataset.removeTray);
+          });
+        });
+      }
+    }
+
+    function openTrayDrawer() {
+      updateTrayUI();
+      els.trayDrawer.classList.remove("hidden");
+      document.body.classList.add("overflow-hidden");
+    }
+
+    function closeTrayDrawer() {
+      els.trayDrawer.classList.add("hidden");
+      document.body.classList.remove("overflow-hidden");
+    }
+
+    /*************************************************************************
+     * 8. EVENT LISTENERS & INITIALIZATION
+     *************************************************************************/
+    // Dining Hall Switch
+    els.hallSelector.addEventListener("change", (e) => {
+      state.currentHall = e.target.value;
+      els.voteFeedback.classList.add("hidden");
+      renderCrowdSection();
+      renderMenuGrid();
+    });
+
+    // Live Crowd Voting Buttons
+    els.voteBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        handleCrowdVote(btn.dataset.vote);
+      });
+    });
+
+    // Meal Period Tabs
+    els.mealTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        state.currentMeal = tab.dataset.meal;
+        els.mealTabs.forEach(t => {
+          const isSelected = t.dataset.meal === state.currentMeal;
+          t.setAttribute("aria-selected", isSelected ? "true" : "false");
+          if (isSelected) {
+            t.className = "meal-tab px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-white text-slate-900 shadow-sm";
+          } else {
+            t.className = "meal-tab px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer text-slate-600 hover:text-slate-900";
+          }
+        });
+        renderMenuGrid();
+      });
+    });
+
+    // Search Input
+    els.searchInput.addEventListener("input", (e) => {
+      state.searchQuery = e.target.value;
+      renderMenuGrid();
+    });
+
+    // Sort Selector
+    els.sortSelector.addEventListener("change", (e) => {
+      state.sortBy = e.target.value;
+      renderMenuGrid();
+    });
+
+    // Dietary Toggle Pills
+    els.dietPills.forEach(pill => {
+      pill.addEventListener("click", () => {
+        const filterName = pill.dataset.filter;
+        if (state.activeFilters.has(filterName)) {
+          state.activeFilters.delete(filterName);
+          pill.classList.remove("bg-emerald-600", "text-white", "border-emerald-600", "shadow-xs");
+          pill.classList.add("bg-slate-50", "text-slate-700", "border-slate-200");
+        } else {
+          state.activeFilters.add(filterName);
+          pill.classList.remove("bg-slate-50", "text-slate-700", "border-slate-200");
+          pill.classList.add("bg-emerald-600", "text-white", "border-emerald-600", "shadow-xs");
+        }
+        renderMenuGrid();
+      });
+    });
+
+    // Clear Filters
+    function resetAllFilters() {
+      state.activeFilters.clear();
+      state.searchQuery = "";
+      els.searchInput.value = "";
+      els.dietPills.forEach(pill => {
+        pill.classList.remove("bg-emerald-600", "text-white", "border-emerald-600", "shadow-xs");
+        pill.classList.add("bg-slate-50", "text-slate-700", "border-slate-200");
+      });
+      renderMenuGrid();
+    }
+    els.clearFiltersBtn.addEventListener("click", resetAllFilters);
+    els.emptyResetBtn.addEventListener("click", resetAllFilters);
+
+    // Nutrition Modal Events
+    els.closeNutritionModal.addEventListener("click", closeNutritionModal);
+    els.nutritionModalBackdrop.addEventListener("click", closeNutritionModal);
+    els.modalAddTrayBtn.addEventListener("click", () => {
+      if (state.selectedDish) {
+        addDishToTray(state.selectedDish);
+        closeNutritionModal();
+      }
+    });
+
+    // Tray Drawer Events
+    els.openTrayBtn.addEventListener("click", openTrayDrawer);
+    els.floatingOpenTrayBtn.addEventListener("click", openTrayDrawer);
+    els.closeTrayDrawer.addEventListener("click", closeTrayDrawer);
+    els.doneTrayBtn.addEventListener("click", closeTrayDrawer);
+    els.trayDrawerBackdrop.addEventListener("click", closeTrayDrawer);
+    els.clearTrayBtn.addEventListener("click", () => {
+      state.mealTray = [];
+      updateTrayUI();
+    });
+
+    // Keyboard Escape Support for Modals/Drawers
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (!els.nutritionModal.classList.contains("hidden")) closeNutritionModal();
+        if (!els.trayDrawer.classList.contains("hidden")) closeTrayDrawer();
+      }
+    });
+
+    // Initial Render on Page Load
+    renderCrowdSection();
+    renderMenuGrid();
+    updateTrayUI();
+  </script>
+</body>
+</html>
